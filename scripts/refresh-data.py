@@ -20,6 +20,59 @@ ROOT = Path(__file__).resolve().parent.parent
 URLS = {f"{geo}-{freq}.xls": f"https://www.eia.gov/dnav/pet/hist_xls/EMM_EPMR_PTE_{state}_DPG{freq}.xls"
         for geo, state in [("ca", "SCA"), ("us", "NUS")] for freq in ["w", "m"]}
 URLS["bls-all-items.txt"] = "https://download.bls.gov/pub/time.series/cu/cu.data.1.AllItems"
+BLS_API = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
+
+
+def api_cpi_rows(payload, start, end):
+    if payload.get("status") != "REQUEST_SUCCEEDED":
+        raise ValueError("BLS API request failed")
+    series = payload.get("Results", {}).get("series", [])
+    if len(series) != 1 or series[0].get("seriesID") != "CUUR0000SA0":
+        raise ValueError("Wrong BLS API series")
+    records = {}
+    for row in series[0].get("data", []):
+        period = row["period"]
+        if period == "M13":
+            continue
+        year = int(row["year"])
+        if not period.startswith("M") or not 1 <= int(period[1:]) <= 12 or not start <= year <= end:
+            raise ValueError("Unexpected BLS API period")
+        key = f"{year}-{int(period[1:]):02d}"
+        if key in records:
+            raise ValueError("Duplicate BLS API period")
+        value = row["value"]
+        if value in ("-", "NA", "N/A"):
+            continue
+        if not math.isfinite(float(value)) or float(value) <= 0:
+            raise ValueError("Invalid BLS API value")
+        records[key] = value
+    if not records:
+        raise ValueError("Empty BLS API series")
+    return records
+
+
+def fetch_api_cpi(raw, today):
+    # Version 1 is public without a key; each request covers at most ten years.
+    records, sources = {}, []
+    for start in range(2000, today.year + 1, 10):
+        end = min(start + 9, today.year)
+        query = {"seriesid": ["CUUR0000SA0"], "startyear": str(start), "endyear": str(end)}
+        request = urllib.request.Request(BLS_API, data=json.dumps(query).encode(),
+                                         headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(request, timeout=45) as response:
+            body = response.read()
+        rows = api_cpi_rows(json.loads(body), start, end)
+        if records.keys() & rows.keys():
+            raise ValueError("Overlapping BLS API responses")
+        records.update(rows)
+        name = f"bls-api-{start}-{end}.json"
+        (raw / name).write_bytes(body)
+        sources.append({"file": name, "url": BLS_API, "request": query,
+                        "sha256": hashlib.sha256(body).hexdigest()})
+    lines = ["series_id year period value"]
+    lines.extend(f"CUUR0000SA0 {p[:4]} M{p[5:]} {v}" for p, v in sorted(records.items()))
+    (raw / "bls-all-items.txt").write_text("\n".join(lines) + "\n")
+    (raw / "bls-api-provenance.json").write_text(json.dumps(sources))
 
 
 def prices(path, geo, frequency, today):
@@ -109,6 +162,17 @@ def assemble(raw, today, retrieved):
     if not shared_real:
         raise ValueError("No common monthly price/CPI coverage")
     raw_hashes = {name: hashlib.sha256((raw / name).read_bytes()).hexdigest() for name in URLS}
+    sources = [{"file": name, "url": url, "sha256": raw_hashes[name], "retrievedAt": retrieved}
+               for name, url in URLS.items()]
+    provenance = raw / "bls-api-provenance.json"
+    if provenance.exists():
+        sources[-1]["url"] = BLS_API
+        sources[-1]["note"] = "Normalized monthly CPI rows from archived official API responses; not a bulk-file download."
+        for source in json.loads(provenance.read_text()):
+            if hashlib.sha256((raw / source["file"]).read_bytes()).hexdigest() != source["sha256"]:
+                raise ValueError("BLS API archive hash mismatch")
+            raw_hashes[source["file"]] = source["sha256"]
+            sources.append({**source, "retrievedAt": retrieved})
     canonical = json.dumps({**result, "rawHashes": raw_hashes}, sort_keys=True, separators=(",", ":"))
     snapshot_id = "eia-bls-" + hashlib.sha256(canonical.encode()).hexdigest()[:16]
     cpi_periods = sorted(p for p in cpis if p >= '2000-06')
@@ -117,7 +181,7 @@ def assemble(raw, today, retrieved):
     return {"schemaVersion": 1, "snapshotId": snapshot_id, "retrievedAt": retrieved,
             "cpiCoverage": cpi_coverage,
             "coverage": coverage, "realEndpoint": shared_real[-1]["period"],
-            "sources": [{"file": name, "url": url, "sha256": raw_hashes[name], "retrievedAt": retrieved} for name, url in URLS.items()],
+            "sources": sources,
             "series": {"ca": "EMM_EPMR_PTE_SCA_DPG", "us": "EMM_EPMR_PTE_NUS_DPG", "cpi": "CUUR0000SA0"},
             "excluded": {"monthly": ["2000-05"], "reason": "California series began partway through May 2000; partial initial month excluded."},
             "validation": {"status": "passed", "checks": ["series/product/units", "positive finite values", "duplicates", "future dates", "coverage", "completed months", "common endpoints", "missing periods retained"]},
@@ -138,6 +202,8 @@ def main():
         if args.replay:
             for name in URLS:
                 shutil.copyfile(args.replay / name, raw / name)
+            for path in args.replay.glob("bls-api-*.json"):
+                shutil.copyfile(path, raw / path.name)
         else:
             def fetch(item):
                 name, url = item
@@ -150,6 +216,10 @@ def main():
                         return
                     except Exception as exc:
                         error = exc
+                if name == "bls-all-items.txt":
+                    print("BLS bulk download unavailable; checking the official public API.", flush=True)
+                    fetch_api_cpi(raw, today)
+                    return
                 raise RuntimeError(f"Could not retrieve {name}") from error
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
                 list(pool.map(fetch, URLS.items()))
@@ -159,6 +229,8 @@ def main():
             for frequency in ("weekly", "monthly"):
                 if snapshot["coverage"][frequency]["last"] < previous["coverage"][frequency]["last"]:
                     raise ValueError("New download would regress coverage; previous snapshot retained")
+            if snapshot["cpiCoverage"]["last"] < previous["cpiCoverage"]["last"]:
+                raise ValueError("New download would regress CPI coverage; previous snapshot retained")
         archived = ROOT / "data/raw" / snapshot["snapshotId"]
         archived.parent.mkdir(exist_ok=True)
         if not archived.exists():
