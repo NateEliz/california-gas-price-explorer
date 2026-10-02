@@ -1,0 +1,75 @@
+name: Update data and publish explorer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 15 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: gas-explorer-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install -r requirements-data.txt
+      - name: Test refresh and calculations
+        run: |
+          python tests/refresh.test.py
+          pnpm test
+      - name: Retrieve and validate official data
+        run: python scripts/refresh-data.py
+      - name: Validate current dataset
+        run: node --experimental-strip-types scripts/validate-current.mjs
+      - name: Build website
+        run: |
+          pnpm exec tsc --noEmit --incremental false
+          pnpm run build:local
+          mkdir -p public-site
+          cp deliverables/California_Gas_Price_Explorer.html public-site/index.html
+          touch public-site/.nojekyll
+      - name: Retain verified data and source history
+        run: |
+          git config user.name 'gas-explorer-update[bot]'
+          git config user.email 'gas-explorer-update[bot]@users.noreply.github.com'
+          git add data/snapshot.json data/raw
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh verified official data'
+            git push
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish verified explorer
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,96 @@
+{
+  "snapshotId": "eia-bls-512f94779b431ee3",
+  "verifiedAt": "2026-10-01T19:22:20.805805+00:00",
+  "checks": [
+    {
+      "geography": "ca",
+      "frequency": "weekly",
+      "period": "2000-05-22",
+      "imported": 1.634,
+      "officialTable": 1.634,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_SCA_DPG&f=W",
+      "status": "passed"
+    },
+    {
+      "geography": "us",
+      "frequency": "weekly",
+      "period": "2000-05-22",
+      "imported": 1.527,
+      "officialTable": 1.527,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_NUS_DPG&f=W",
+      "status": "passed"
+    },
+    {
+      "geography": "ca",
+      "frequency": "weekly",
+      "period": "2018-05-07",
+      "imported": 3.632,
+      "officialTable": 3.632,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_SCA_DPG&f=W",
+      "status": "passed"
+    },
+    {
+      "geography": "us",
+      "frequency": "weekly",
+      "period": "2018-05-21",
+      "imported": 2.923,
+      "officialTable": 2.923,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_NUS_DPG&f=W",
+      "status": "passed"
+    },
+    {
+      "geography": "ca",
+      "frequency": "weekly",
+      "period": "2026-09-28",
+      "imported": 6.189,
+      "officialTable": 6.189,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_SCA_DPG&f=W",
+      "status": "passed"
+    },
+    {
+      "geography": "us",
+      "frequency": "weekly",
+      "period": "2026-09-28",
+      "imported": 4.465,
+      "officialTable": 4.465,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_NUS_DPG&f=W",
+      "status": "passed"
+    },
+    {
+      "geography": "ca",
+      "frequency": "monthly",
+      "period": "2000-06",
+      "imported": 1.622,
+      "officialTable": 1.622,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_SCA_DPG&f=M",
+      "status": "passed"
+    },
+    {
+      "geography": "us",
+      "frequency": "monthly",
+      "period": "2000-06",
+      "imported": 1.633,
+      "officialTable": 1.633,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_NUS_DPG&f=M",
+      "status": "passed"
+    },
+    {
+      "geography": "ca",
+      "frequency": "monthly",
+      "period": "2026-09",
+      "imported": 5.924,
+      "officialTable": 5.924,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_SCA_DPG&f=M",
+      "status": "passed"
+    },
+    {
+      "geography": "us",
+      "frequency": "monthly",
+      "period": "2026-09",
+      "imported": 4.355,
+      "officialTable": 4.355,
+      "sourceUrl": "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=EMM_EPMR_PTE_NUS_DPG&f=M",
+      "status": "passed"
+    }
+  ]
+}

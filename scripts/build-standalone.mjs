@@ -1,0 +1,13 @@
+import {spawnSync} from 'node:child_process';
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'..');
+const built=spawnSync(process.execPath,['node_modules/vite/bin/vite.js','build','--config','.standalone/vite.config.ts'],{cwd:root,stdio:'inherit'});
+if(built.status!==0)process.exit(built.status??1);
+let html=readFileSync(path.join(root,'dist-local/index.html'),'utf8');
+html=html.replace(/<script\b[^>]*src="([^"]+)"[^>]*><\/script>/g,(_,url)=>'<script type="module">'+readFileSync(path.join(root,'dist-local',url),'utf8').replace(/<\/script/gi,'<\\/script')+'</script>');
+html=html.replace(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g,(_,url)=>'<style>'+readFileSync(path.join(root,'dist-local',url),'utf8')+'</style>');
+if(/(?:src|href)="\.\/assets\//.test(html))throw Error('Uninlined build assets remain.');
+mkdirSync(path.join(root,'deliverables'),{recursive:true});
+const output=path.join(root,'deliverables/California_Gas_Price_Explorer.html');writeFileSync(output,html);
+console.log(JSON.stringify({output,bytes:Buffer.byteLength(html)}));
